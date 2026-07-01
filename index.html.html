@@ -1,0 +1,1448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Should I ride?</title>
+
+  <!-- Leaflet map library -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+
+  <style>
+    :root {
+      --bg: #08111f;
+      --panel: rgba(15, 23, 42, 0.92);
+      --muted: #94a3b8;
+      --text: #f8fafc;
+      --green: #16a34a;
+      --amber: #f59e0b;
+      --red: #dc2626;
+      --border: rgba(255,255,255,0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Inter, Segoe UI, Arial, sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(56,189,248,0.10), transparent 34%),
+        linear-gradient(135deg, #07111f, #0f172a 45%, #020617);
+      color: var(--text);
+    }
+
+    .app {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 18px;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 16px;
+      align-items: start;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(28px, 4vw, 44px);
+      letter-spacing: -0.04em;
+      line-height: 1.05;
+    }
+
+    .subtitle {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .decision {
+      min-width: 300px;
+      border-radius: 18px;
+      padding: 14px 16px;
+      font-weight: 800;
+      text-align: right;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.28);
+      border: 1px solid var(--border);
+    }
+
+    .decision small {
+      display: block;
+      margin-top: 6px;
+      font-weight: 500;
+      opacity: 0.92;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .decision.good {
+      background: linear-gradient(135deg, #15803d, #16a34a);
+    }
+
+    .decision.caution {
+      background: linear-gradient(135deg, #b45309, #f59e0b);
+      color: #111827;
+    }
+
+    .decision.bad {
+      background: linear-gradient(135deg, #991b1b, #dc2626);
+    }
+
+    .tiles {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .tile {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 14px;
+      min-height: 112px;
+      box-shadow: 0 18px 40px rgba(0,0,0,0.18);
+      backdrop-filter: blur(14px);
+    }
+
+    .tile-title {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 8px;
+      letter-spacing: 0.02em;
+    }
+
+    .tile-main {
+      font-size: 19px;
+      font-weight: 800;
+      line-height: 1.15;
+    }
+
+    .tile-sub {
+      color: #cbd5e1;
+      font-size: 12px;
+      margin-top: 8px;
+      line-height: 1.35;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 14px;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.26);
+      backdrop-filter: blur(14px);
+      margin-bottom: 14px;
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .panel-title {
+      font-weight: 800;
+      font-size: 15px;
+    }
+
+    .panel-meta {
+      color: var(--muted);
+      font-size: 12px;
+      text-align: right;
+    }
+
+    #map {
+      height: 58vh;
+      min-height: 430px;
+      border-radius: 20px;
+      overflow: hidden;
+      background: #020617;
+      border: 1px solid var(--border);
+    }
+
+    .map-wrap {
+      position: relative;
+    }
+
+    .map-chip {
+      position: absolute;
+      z-index: 900;
+      background: rgba(0,0,0,0.68);
+      border: 1px solid rgba(255,255,255,0.14);
+      color: #fff;
+      padding: 7px 9px;
+      border-radius: 10px;
+      font-size: 12px;
+      backdrop-filter: blur(10px);
+    }
+
+    .chip-left {
+      top: 12px;
+      left: 12px;
+    }
+
+    .chip-right {
+      top: 12px;
+      right: 12px;
+      text-align: right;
+      max-width: 330px;
+    }
+
+    .chip-bottom {
+      bottom: 12px;
+      left: 12px;
+    }
+
+    .timeline {
+      margin-top: 12px;
+      background: rgba(2, 6, 23, 0.55);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      padding: 12px;
+    }
+
+    .timeline-controls {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+
+    .play-button {
+      border: 1px solid rgba(255,255,255,0.16);
+      background: rgba(56, 189, 248, 0.16);
+      color: white;
+      border-radius: 999px;
+      padding: 7px 12px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .play-button.playing {
+      background: rgba(245, 158, 11, 0.92);
+      color: #111827;
+    }
+
+    .timeline-note {
+      color: #cbd5e1;
+      font-size: 12px;
+    }
+
+    input[type="range"] {
+      appearance: none;
+      width: 100%;
+      height: 8px;
+      border-radius: 999px;
+      background: linear-gradient(to right, #38bdf8 0%, #38bdf8 80%, #f59e0b 80%, #f59e0b 100%);
+      accent-color: #38bdf8;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: white;
+      border: 3px solid #38bdf8;
+      box-shadow: 0 0 0 3px rgba(56,189,248,0.2);
+    }
+
+    input[type="range"].projected::-webkit-slider-thumb {
+      border-color: #f59e0b;
+      box-shadow: 0 0 0 3px rgba(245,158,11,0.25);
+    }
+
+    .timeline-labels {
+      display: flex;
+      justify-content: space-between;
+      color: #cbd5e1;
+      font-size: 11px;
+      margin-top: 6px;
+      gap: 6px;
+    }
+
+    .timeline-labels span {
+      white-space: nowrap;
+    }
+
+    .bars {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 7px;
+      align-items: end;
+      height: 150px;
+      padding: 12px 6px 4px;
+    }
+
+    .bar-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: end;
+      height: 100%;
+      gap: 5px;
+    }
+
+    .bar {
+      width: 100%;
+      max-width: 26px;
+      min-height: 8px;
+      border-radius: 999px 999px 4px 4px;
+      background: linear-gradient(to top, #0ea5e9, #7dd3fc);
+      border: 1px solid rgba(255,255,255,0.16);
+    }
+
+    .bar-label {
+      font-size: 10px;
+      color: #94a3b8;
+      text-align: center;
+      line-height: 1.15;
+    }
+
+    .status-line {
+      font-size: 12px;
+      color: #cbd5e1;
+      margin-top: 8px;
+      line-height: 1.35;
+    }
+
+    .error {
+      color: #fecaca;
+    }
+
+    .footer {
+      color: #64748b;
+      font-size: 11px;
+      padding: 8px 2px 0;
+      line-height: 1.4;
+    }
+
+    @media (max-width: 980px) {
+      .topbar {
+        grid-template-columns: 1fr;
+      }
+
+      .decision {
+        text-align: left;
+      }
+    }
+
+    @media (max-width: 620px) {
+      .tiles {
+        grid-template-columns: 1fr;
+      }
+
+      #map {
+        height: 56vh;
+        min-height: 360px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div>
+        <h1>Should I ride?</h1>
+        <div class="subtitle">Prahran to Melbourne CBD - forecast-led, commute-led, radar-confirmed.</div>
+      </div>
+
+      <div id="decisionBadge" class="decision good">
+        Loading...
+        <small>Waiting for forecast and radar data</small>
+      </div>
+    </div>
+
+    <div class="tiles">
+      <div class="tile">
+        <div class="tile-title">Commute call</div>
+        <div id="tileCommute" class="tile-main">Loading...</div>
+        <div id="tileCommuteSub" class="tile-sub">Checking rain, timing, radar and wind.</div>
+      </div>
+
+      <div class="tile">
+        <div class="tile-title">Next hour</div>
+        <div id="tileRainHour" class="tile-main">Loading...</div>
+        <div id="tileRainHourSub" class="tile-sub">Immediate leave-now planning.</div>
+      </div>
+
+      <div class="tile">
+        <div class="tile-title">Day planning</div>
+        <div id="tileRain" class="tile-main">Loading...</div>
+        <div id="tileRainSub" class="tile-sub">Next 6 hours for jacket / umbrella planning.</div>
+      </div>
+
+      <div class="tile">
+        <div class="tile-title">Radar on route</div>
+        <div id="tileRadar" class="tile-main">Loading...</div>
+        <div id="tileRadarSub" class="tile-sub">Pixel sampling along Prahran to CBD corridor.</div>
+      </div>
+
+      <div class="tile">
+        <div class="tile-title">What to wear / pack</div>
+        <div id="tileWear" class="tile-main">Loading...</div>
+        <div id="tileWearSub" class="tile-sub">Rain jacket, umbrella, warm layer etc.</div>
+      </div>
+
+      <div class="tile">
+        <div class="tile-title">Wind</div>
+        <div id="tileWind" class="tile-main">Loading...</div>
+        <div id="tileWindSub" class="tile-sub">N/W wind flagged as commute-slower.</div>
+      </div>
+
+      <div class="tile">
+        <div class="tile-title">Severe weather</div>
+        <div id="tileSevere" class="tile-main">Loading...</div>
+        <div id="tileSevereSub" class="tile-sub">Thunderstorm / hail model signal.</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Radar movement and route risk</div>
+        <div id="radarMeta" class="panel-meta">Loading radar...</div>
+      </div>
+
+      <div class="map-wrap">
+        <div id="map"></div>
+        <div id="mapTimeChip" class="map-chip chip-left">Time: --</div>
+        <div id="mapDecisionChip" class="map-chip chip-right">Route rain: --</div>
+        <div class="map-chip chip-bottom">Prahran to CBD corridor</div>
+      </div>
+
+      <div class="timeline">
+        <div class="timeline-controls">
+          <button id="playButton" class="play-button" type="button">▶ Play</button>
+          <div id="timelineNote" class="timeline-note">Blue = actual radar. Amber = projected trend.</div>
+        </div>
+
+        <input id="timelineSlider" type="range" min="0" max="0" value="0" />
+
+        <div id="timelineLabels" class="timeline-labels"></div>
+        <div id="radarStatus" class="status-line">Radar status: loading.</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Rain probability through the day</div>
+        <div id="forecastMeta" class="panel-meta">Loading forecast...</div>
+      </div>
+
+      <div id="rainBars" class="bars"></div>
+
+      <div class="status-line">
+        This chart is forecast-led. Radar is used as a live sanity check, not the whole app.
+      </div>
+    </div>
+
+    <div class="footer">
+      Data: RainViewer radar tiles + Open-Meteo forecast. RainViewer public radar data is used for past radar frames. Projected +30 and +60 minute positions are trend estimates only. Weather radar data by RainViewer.
+    </div>
+  </div>
+
+  <canvas id="sampleCanvas" width="512" height="512" style="display:none;"></canvas>
+
+  <script>
+    function showCriticalError(message) {
+      const badge = document.getElementById("decisionBadge");
+      badge.className = "decision bad";
+      badge.innerHTML = "App error<small>" + message + "</small>";
+
+      const radarMeta = document.getElementById("radarMeta");
+      const radarStatus = document.getElementById("radarStatus");
+
+      if (radarMeta) radarMeta.textContent = "Unable to initialise";
+      if (radarStatus) radarStatus.innerHTML = "<span class='error'>" + message + "</span>";
+    }
+
+    if (!window.L) {
+      showCriticalError("Leaflet did not load. The map library may be blocked.");
+      throw new Error("Leaflet not loaded");
+    }
+
+    const HOME = { label: "Prahran", lat: -37.8517, lon: 144.9937 };
+    const WORK = { label: "Melbourne CBD", lat: -37.8136, lon: 144.9631 };
+    const MIDPOINT = { lat: -37.8327, lon: 144.9784 };
+
+    const RADAR_ZOOM = 7;
+    const RADAR_SIZE = 512;
+
+    const PERSONAL_RULES = {
+      rainProbabilityConcern: 30,
+      rainAmountConcernMm: 1,
+      tooCold: 6,
+      tooHot: 36,
+      windGustConcern: 45
+    };
+
+    const state = {
+      map: null,
+      routeLine: null,
+
+      radarLayer: null,
+      radarLayerPending: null,
+      radarFadeTimer: null,
+      radarTransitionId: 0,
+      isRadarUpdating: false,
+
+      radarHost: "",
+      radarFramesActual: [],
+      radarFramesUi: [],
+      selectedFrameIndex: 0,
+
+      playTimer: null,
+      isPlaying: false,
+
+      radarAnalysisCache: {},
+      latestRadarAnalysis: null,
+
+      forecastRows: [],
+      forecastSummary: null,
+      currentDecision: null
+    };
+
+    const el = (id) => document.getElementById(id);
+
+    function fetchWithTimeout(url, timeoutMs) {
+      return Promise.race([
+        fetch(url),
+        new Promise((_, reject) => {
+          setTimeout(() => reject(new Error("Timed out")), timeoutMs);
+        })
+      ]);
+    }
+
+    function formatTimeFromUnix(unixSeconds) {
+      return new Date(unixSeconds * 1000).toLocaleTimeString("en-AU", {
+        hour: "numeric",
+        minute: "2-digit"
+      });
+    }
+
+    function weatherCodeLabel(code) {
+      const labels = {
+        0: "Clear",
+        1: "Mainly clear",
+        2: "Partly cloudy",
+        3: "Overcast",
+        45: "Fog",
+        48: "Fog",
+        51: "Light drizzle",
+        53: "Drizzle",
+        55: "Heavy drizzle",
+        61: "Light rain",
+        63: "Rain",
+        65: "Heavy rain",
+        80: "Light showers",
+        81: "Showers",
+        82: "Heavy showers",
+        95: "Thunderstorm",
+        96: "Thunderstorm with hail",
+        99: "Severe thunderstorm with hail"
+      };
+
+      return labels[code] || "Weather";
+    }
+
+    function directionLabel(deg) {
+      if (deg == null || Number.isNaN(deg)) return "variable";
+      const labels = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+      return labels[Math.round(deg / 45) % 8];
+    }
+
+    function isNorthOrWestWind(deg) {
+      if (deg == null || Number.isNaN(deg)) return false;
+      return deg >= 270 || deg <= 45 || (deg >= 225 && deg <= 315);
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function latLonToGlobalPixels(lat, lon, zoom) {
+      const sinLat = Math.sin((lat * Math.PI) / 180);
+      const scale = 256 * Math.pow(2, zoom);
+
+      return {
+        x: ((lon + 180) / 360) * scale,
+        y: (0.5 - Math.log((1 + sinLat) / (1 - sinLat)) / (4 * Math.PI)) * scale
+      };
+    }
+
+    function latLonToCenteredRadarPixel(lat, lon) {
+      const center = latLonToGlobalPixels(MIDPOINT.lat, MIDPOINT.lon, RADAR_ZOOM);
+      const point = latLonToGlobalPixels(lat, lon, RADAR_ZOOM);
+
+      return {
+        x: Math.round(point.x - center.x + RADAR_SIZE / 2),
+        y: Math.round(point.y - center.y + RADAR_SIZE / 2)
+      };
+    }
+
+    function routeSampleLatLons(count) {
+      const samples = [];
+
+      for (let i = 0; i < count; i++) {
+        const t = i / (count - 1);
+
+        samples.push({
+          lat: HOME.lat + (WORK.lat - HOME.lat) * t,
+          lon: HOME.lon + (WORK.lon - HOME.lon) * t
+        });
+      }
+
+      return samples;
+    }
+
+    function routeSamplePixels() {
+      const base = routeSampleLatLons(36).map((p) => latLonToCenteredRadarPixel(p.lat, p.lon));
+      const start = latLonToCenteredRadarPixel(HOME.lat, HOME.lon);
+      const end = latLonToCenteredRadarPixel(WORK.lat, WORK.lon);
+
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const length = Math.sqrt(dx * dx + dy * dy) || 1;
+
+      const nx = -dy / length;
+      const ny = dx / length;
+
+      const offsets = [-14, -10, -6, -2, 0, 2, 6, 10, 14];
+      const pixels = [];
+
+      base.forEach((p) => {
+        offsets.forEach((offset) => {
+          pixels.push({
+            x: Math.round(p.x + nx * offset),
+            y: Math.round(p.y + ny * offset)
+          });
+        });
+      });
+
+      return pixels.filter((p) => p.x >= 0 && p.x < RADAR_SIZE && p.y >= 0 && p.y < RADAR_SIZE);
+    }
+
+    function pixelRainScore(r, g, b, a) {
+      if (a < 12) return 0;
+
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      const saturation = max - min;
+
+      const alphaComponent = a / 255;
+      const brightnessComponent = max / 255;
+      const saturationComponent = saturation / 255;
+
+      return Math.round(255 * alphaComponent * (0.55 * brightnessComponent + 0.45 * saturationComponent));
+    }
+
+    function classifyIntensity(score) {
+      if (score >= 105) return { level: "heavy", label: "Heavy rain", cls: "bad" };
+      if (score >= 65) return { level: "moderate", label: "Moderate rain", cls: "caution" };
+      if (score >= 28) return { level: "light", label: "Light rain", cls: "caution" };
+      return { level: "clear", label: "No material rain", cls: "good" };
+    }
+
+    function rainTileUrl(frame) {
+      return state.radarHost + frame.path + "/256/{z}/{x}/{y}/2/1_1.png";
+    }
+
+    function radarWidgetUrl(frame) {
+      return state.radarHost + frame.path + "/512/" + RADAR_ZOOM + "/" + MIDPOINT.lat + "/" + MIDPOINT.lon + "/2/1_1.png";
+    }
+
+    async function analyseRadarFrame(frame) {
+      if (!frame) {
+        return {
+          score: 0,
+          status: "No frame",
+          supported: false,
+          classification: classifyIntensity(0)
+        };
+      }
+
+      const cacheKey = frame.time || frame.path;
+      if (state.radarAnalysisCache[cacheKey]) return state.radarAnalysisCache[cacheKey];
+
+      const url = radarWidgetUrl(frame);
+
+      const result = await new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+
+        img.onload = function () {
+          try {
+            const canvas = el("sampleCanvas");
+            const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+            ctx.clearRect(0, 0, RADAR_SIZE, RADAR_SIZE);
+            ctx.drawImage(img, 0, 0, RADAR_SIZE, RADAR_SIZE);
+
+            const pixels = routeSamplePixels();
+            const scores = [];
+
+            pixels.forEach((p) => {
+              const data = ctx.getImageData(p.x, p.y, 1, 1).data;
+              scores.push(pixelRainScore(data[0], data[1], data[2], data[3]));
+            });
+
+            scores.sort((a, b) => b - a);
+
+            const topCount = Math.max(1, Math.ceil(scores.length * 0.12));
+            const topAverage = scores.slice(0, topCount).reduce((sum, s) => sum + s, 0) / topCount;
+            const maxScore = scores[0] || 0;
+            const materialSamples = scores.filter((s) => s >= 28).length;
+            const coverage = materialSamples / Math.max(1, scores.length);
+            const finalScore = Math.round((topAverage * 0.75) + (maxScore * 0.25));
+
+            resolve({
+              score: finalScore,
+              maxScore: maxScore,
+              coverage: coverage,
+              supported: true,
+              status: "Pixel sampling active",
+              classification: classifyIntensity(finalScore)
+            });
+          } catch (err) {
+            resolve({
+              score: 0,
+              maxScore: 0,
+              coverage: 0,
+              supported: false,
+              status: "Pixel sampling blocked by browser security - visual radar still available",
+              classification: classifyIntensity(0)
+            });
+          }
+        };
+
+        img.onerror = function () {
+          resolve({
+            score: 0,
+            maxScore: 0,
+            coverage: 0,
+            supported: false,
+            status: "Radar image could not be loaded for sampling",
+            classification: classifyIntensity(0)
+          });
+        };
+
+        img.src = url;
+      });
+
+      state.radarAnalysisCache[cacheKey] = result;
+      return result;
+    }
+
+    async function projectedRadarAnalysis(minutesAhead) {
+      const actual = state.radarFramesActual;
+
+      if (!actual.length) {
+        return {
+          score: 0,
+          supported: false,
+          status: "No radar frames for projection",
+          classification: classifyIntensity(0)
+        };
+      }
+
+      const latest = actual[actual.length - 1];
+      const previous = actual[Math.max(0, actual.length - 4)];
+
+      const latestAnalysis = await analyseRadarFrame(latest);
+      const previousAnalysis = await analyseRadarFrame(previous);
+
+      const frameSteps = Math.max(1, actual.length - 1);
+      const trendPerFrame = (latestAnalysis.score - previousAnalysis.score) / frameSteps;
+      const forecastSteps = minutesAhead / 10;
+      const projectedScore = clamp(Math.round(latestAnalysis.score + trendPerFrame * forecastSteps), 0, 255);
+
+      return {
+        score: projectedScore,
+        maxScore: projectedScore,
+        coverage: latestAnalysis.coverage || 0,
+        supported: latestAnalysis.supported,
+        status: latestAnalysis.supported
+          ? "Projection from latest radar trend (+" + minutesAhead + " min)"
+          : latestAnalysis.status,
+        classification: classifyIntensity(projectedScore),
+        projected: true
+      };
+    }
+
+    async function loadForecast() {
+      const params = new URLSearchParams({
+        latitude: String(HOME.lat),
+        longitude: String(HOME.lon),
+        timezone: "Australia/Melbourne",
+        forecast_days: "2",
+        hourly: [
+          "temperature_2m",
+          "apparent_temperature",
+          "precipitation_probability",
+          "precipitation",
+          "weather_code",
+          "wind_speed_10m",
+          "wind_gusts_10m",
+          "wind_direction_10m",
+          "uv_index"
+        ].join(",")
+      });
+
+      const url = "https://api.open-meteo.com/v1/forecast?" + params.toString();
+
+      try {
+        const res = await fetchWithTimeout(url, 9000);
+
+        if (!res.ok) throw new Error("Forecast request failed");
+
+        const data = await res.json();
+
+        state.forecastRows = data.hourly.time.map((time, i) => ({
+          time: time,
+          date: new Date(time),
+          temp: data.hourly.temperature_2m[i],
+          feels: data.hourly.apparent_temperature[i],
+          rainProb: data.hourly.precipitation_probability[i],
+          rainMm: data.hourly.precipitation[i],
+          code: data.hourly.weather_code[i],
+          wind: data.hourly.wind_speed_10m[i],
+          gust: data.hourly.wind_gusts_10m[i],
+          windDirection: data.hourly.wind_direction_10m[i],
+          uv: data.hourly.uv_index[i]
+        }));
+
+        computeForecastSummary();
+        renderRainBars();
+
+        el("forecastMeta").textContent = "Forecast loaded";
+        renderForecastOnlyIfRadarSlow();
+      } catch (err) {
+        el("forecastMeta").textContent = "Forecast unavailable";
+        el("tileRain").textContent = "Unavailable";
+        el("tileRainSub").textContent = "Forecast request failed or was blocked.";
+        el("tileRainHour").textContent = "Unavailable";
+        el("tileRainHourSub").textContent = "Forecast request failed or was blocked.";
+        state.forecastSummary = null;
+      }
+    }
+
+    function computeForecastSummary() {
+      const now = new Date();
+
+      const futureRows = state.forecastRows.filter((r) => r.date >= now);
+      const next1 = futureRows.slice(0, 1);
+      const next6 = futureRows.slice(0, 6);
+      const next12 = futureRows.slice(0, 12);
+
+      if (!next6.length) {
+        state.forecastSummary = null;
+        return;
+      }
+
+      const nextHourRainProb = next1.length ? Math.max.apply(null, next1.map((r) => r.rainProb || 0)) : 0;
+      const nextHourRainMm = next1.reduce((sum, r) => sum + (r.rainMm || 0), 0);
+
+      state.forecastSummary = {
+        nextHourRainProb: nextHourRainProb,
+        nextHourRainMm: nextHourRainMm,
+
+        maxRainProb6: Math.max.apply(null, next6.map((r) => r.rainProb || 0)),
+        rainMm6: next6.reduce((sum, r) => sum + (r.rainMm || 0), 0),
+
+        maxGust6: Math.max.apply(null, next6.map((r) => r.gust || 0)),
+        maxTemp12: Math.max.apply(null, next12.map((r) => r.temp || 0)),
+        minFeels12: Math.min.apply(null, next12.map((r) => r.feels || 0)),
+        maxFeels12: Math.max.apply(null, next12.map((r) => r.feels || 0)),
+        maxUv12: Math.max.apply(null, next12.map((r) => r.uv || 0)),
+
+        stormRisk: next12.some((r) => [95, 96, 99].includes(r.code)),
+        mainWindDirection: directionLabel(next6[0] && next6[0].windDirection),
+        awkwardWind: next6.some((r) => isNorthOrWestWind(r.windDirection) && (r.gust || 0) >= 25),
+        mainWeather: weatherCodeLabel(next6[0] && next6[0].code)
+      };
+    }
+
+    function renderForecastOnlyIfRadarSlow() {
+      if (state.currentDecision) return;
+      if (!state.forecastSummary) return;
+
+      const dummyRadar = {
+        score: 0,
+        status: "Radar still loading",
+        classification: classifyIntensity(0)
+      };
+
+      const frameInfo = { label: "forecast only" };
+      const decision = buildDecision(frameInfo, dummyRadar);
+
+      renderDecision(decision, frameInfo, dummyRadar);
+    }
+
+    function renderRainBars() {
+      const container = el("rainBars");
+      container.innerHTML = "";
+
+      const now = new Date();
+      const rows = state.forecastRows.filter((r) => r.date >= now).slice(0, 12);
+
+      if (!rows.length) {
+        container.innerHTML = "<div class='status-line'>Forecast unavailable.</div>";
+        return;
+      }
+
+      const maxProb = Math.max.apply(null, [10].concat(rows.map((r) => r.rainProb || 0)));
+
+      rows.forEach((r) => {
+        const col = document.createElement("div");
+        col.className = "bar-col";
+
+        const height = Math.max(8, Math.round(((r.rainProb || 0) / maxProb) * 110));
+
+        const bar = document.createElement("div");
+        bar.className = "bar";
+        bar.style.height = height + "px";
+
+        if ((r.rainProb || 0) >= 65 || (r.rainMm || 0) >= 2) {
+          bar.style.background = "linear-gradient(to top, #dc2626, #fb923c)";
+        } else if ((r.rainProb || 0) >= 30 || (r.rainMm || 0) >= 1) {
+          bar.style.background = "linear-gradient(to top, #0284c7, #facc15)";
+        }
+
+        const label = document.createElement("div");
+        label.className = "bar-label";
+        label.innerHTML =
+          r.date.toLocaleTimeString("en-AU", { hour: "numeric" }) +
+          "<br>" +
+          (r.rainProb || 0) +
+          "%<br>" +
+          (r.rainMm || 0).toFixed(1) +
+          "mm";
+
+        col.appendChild(bar);
+        col.appendChild(label);
+        container.appendChild(col);
+      });
+    }
+
+    function wardrobeFrom(summary, radarAnalysis) {
+      if (!summary) return "Check radar";
+
+      const items = [];
+
+      if (summary.maxRainProb6 >= 30 || summary.rainMm6 >= 1 || radarAnalysis.score >= 28) {
+        items.push("Umbrella");
+      }
+
+      if (summary.maxRainProb6 >= 45 || summary.rainMm6 >= 1.5 || radarAnalysis.score >= 65) {
+        items.push("Rain jacket");
+      }
+
+      if (summary.maxGust6 >= PERSONAL_RULES.windGustConcern || summary.awkwardWind) {
+        items.push("Wind layer");
+      }
+
+      if (summary.minFeels12 < 9) {
+        items.push("Warm layer");
+      }
+
+      if (summary.maxFeels12 >= 24 && summary.maxRainProb6 < 30 && radarAnalysis.score < 28) {
+        items.push("Shorts viable");
+      }
+
+      if (summary.maxUv12 >= 6) {
+        items.push("Sunscreen");
+      }
+
+      if (!items.length) return "Standard layers";
+      return items.slice(0, 3).join(" + ");
+    }
+
+    function buildDecision(frameInfo, radarAnalysis) {
+      const summary = state.forecastSummary;
+      const radarClass = radarAnalysis.classification || classifyIntensity(radarAnalysis.score || 0);
+
+      let mode = "Ride";
+      let tone = "good";
+      let reason = "Route looks clear.";
+      let rainText = "Low";
+      let severeText = "No storm signal";
+      let windText = "Low impact";
+
+      if (summary) {
+        rainText = summary.maxRainProb6 + "% / " + summary.rainMm6.toFixed(1) + "mm";
+        windText = Math.round(summary.maxGust6) + "km/h gusts, " + summary.mainWindDirection;
+        severeText = summary.stormRisk ? "Storm / hail signal" : "No storm signal";
+      }
+
+      if (summary && summary.stormRisk) {
+        mode = "Don’t ride";
+        tone = "bad";
+        reason = "Storm or hail signal is present in the forecast model.";
+      } else if (summary && (summary.minFeels12 < PERSONAL_RULES.tooCold || summary.maxFeels12 > PERSONAL_RULES.tooHot)) {
+        mode = "Public transport";
+        tone = "bad";
+        reason = "Temperature crosses your personal riding limit.";
+      } else if (radarAnalysis.score >= 105) {
+        mode = "Don’t ride";
+        tone = "bad";
+        reason = radarClass.label + " detected on or near route.";
+      } else if (radarAnalysis.score >= 65) {
+        mode = "Ride is borderline";
+        tone = "caution";
+        reason = radarClass.label + " detected near the route corridor.";
+      } else if (summary && (summary.maxRainProb6 >= 30 || summary.rainMm6 >= 1)) {
+        mode = "Ride possible - watch timing";
+        tone = "caution";
+        reason = "Forecast rain exceeds your comfort threshold, but radar route intensity is not high.";
+      } else {
+        mode = "Ride";
+        tone = "good";
+        reason = "Route radar and short-term forecast both look manageable.";
+      }
+
+      return {
+        mode: mode,
+        tone: tone,
+        reason: reason,
+        rainText: rainText,
+        windText: windText,
+        severeText: severeText,
+        wear: wardrobeFrom(summary, radarAnalysis),
+        radarText: radarClass.label + " (" + (radarAnalysis.score || 0) + "/255)"
+      };
+    }
+
+    function renderDecision(decision, frameInfo, radarAnalysis) {
+      const badge = el("decisionBadge");
+
+      badge.className = "decision " + decision.tone;
+      badge.innerHTML =
+        decision.mode +
+        "<small>" +
+        decision.reason +
+        "<br>Based on " +
+        frameInfo.label +
+        "</small>";
+
+      el("tileCommute").textContent = decision.mode;
+      el("tileCommuteSub").textContent = decision.reason;
+
+      if (state.forecastSummary) {
+        el("tileRainHour").textContent =
+          state.forecastSummary.nextHourRainProb + "% / " +
+          state.forecastSummary.nextHourRainMm.toFixed(1) + "mm";
+
+        el("tileRainHourSub").textContent =
+          "Next hour - useful for leave-now decisions.";
+      } else {
+        el("tileRainHour").textContent = "Unavailable";
+        el("tileRainHourSub").textContent = "Forecast request failed or was blocked.";
+      }
+
+      el("tileRain").textContent = decision.rainText;
+      el("tileRainSub").textContent = "Next 6 hours - useful for day planning.";
+
+      el("tileRadar").textContent = decision.radarText;
+      el("tileRadarSub").textContent = radarAnalysis.status || "Radar checked";
+
+      el("tileWear").textContent = decision.wear;
+      el("tileWearSub").textContent = "Based on rain, wind, temperature and UV.";
+
+      el("tileWind").textContent = decision.windText;
+      el("tileWindSub").textContent = state.forecastSummary && state.forecastSummary.awkwardWind
+        ? "N/W wind may slow the commute."
+        : "No major commute wind penalty.";
+
+      el("tileSevere").textContent = decision.severeText;
+      el("tileSevereSub").textContent = "Forecast model thunderstorm / hail code check.";
+
+      el("mapDecisionChip").textContent = decision.mode + " - " + decision.radarText;
+    }
+
+    function initMap() {
+      state.map = L.map("map", {
+        center: [-37.25, 145.0],
+        zoom: 7,
+        zoomControl: true
+      });
+
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+        attribution: "© OpenStreetMap © CARTO"
+      }).addTo(state.map);
+
+      state.routeLine = L.polyline(
+        [
+          [HOME.lat, HOME.lon],
+          [MIDPOINT.lat, MIDPOINT.lon],
+          [WORK.lat, WORK.lon]
+        ],
+        {
+          color: "#f8fafc",
+          weight: 4,
+          dashArray: "8 6",
+          opacity: 0.95
+        }
+      ).addTo(state.map);
+
+      L.circleMarker([HOME.lat, HOME.lon], {
+        radius: 6,
+        color: "#34d399",
+        fillColor: "#34d399",
+        fillOpacity: 1
+      }).addTo(state.map).bindPopup("Prahran");
+
+      L.circleMarker([WORK.lat, WORK.lon], {
+        radius: 6,
+        color: "#38bdf8",
+        fillColor: "#38bdf8",
+        fillOpacity: 1
+      }).addTo(state.map).bindPopup("Melbourne CBD");
+
+      setTimeout(function () {
+        state.map.invalidateSize();
+      }, 300);
+    }
+
+    function buildRadarUiFrames(data) {
+      const past = data && data.radar && data.radar.past ? data.radar.past : [];
+      const lastPast = past.slice(-12);
+
+      const actualFrames = lastPast.map((f) => ({
+        path: f.path,
+        time: f.time,
+        type: "actual",
+        label: formatTimeFromUnix(f.time),
+        displayTime: f.time
+      }));
+
+      state.radarFramesActual = actualFrames;
+
+      const latest = actualFrames[actualFrames.length - 1];
+
+      const projected = latest
+        ? [
+            {
+              path: latest.path,
+              time: latest.time,
+              type: "projected",
+              minutesAhead: 30,
+              label: "Projected +30m",
+              projected: true
+            },
+            {
+              path: latest.path,
+              time: latest.time,
+              type: "projected",
+              minutesAhead: 60,
+              label: "Projected +60m",
+              projected: true
+            }
+          ]
+        : [];
+
+      return actualFrames.concat(projected);
+    }
+
+    function renderTimelineLabels() {
+      const labels = el("timelineLabels");
+      labels.innerHTML = "";
+
+      if (!state.radarFramesUi.length) return;
+
+      const first = document.createElement("span");
+      first.textContent = state.radarFramesUi[0] ? state.radarFramesUi[0].label : "";
+      labels.appendChild(first);
+
+      const mid = document.createElement("span");
+      const latestActual = state.radarFramesActual[state.radarFramesActual.length - 1];
+      mid.textContent = latestActual ? "Now " + latestActual.label : "Now";
+      labels.appendChild(mid);
+
+      const last = document.createElement("span");
+      last.textContent = state.radarFramesUi[state.radarFramesUi.length - 1]
+        ? state.radarFramesUi[state.radarFramesUi.length - 1].label
+        : "";
+      labels.appendChild(last);
+    }
+
+    function applyRadarLayer(tileUrl) {
+      state.radarTransitionId += 1;
+      const transitionId = state.radarTransitionId;
+
+      if (state.radarFadeTimer) {
+        clearInterval(state.radarFadeTimer);
+        state.radarFadeTimer = null;
+      }
+
+      if (state.radarLayerPending) {
+        try {
+          state.map.removeLayer(state.radarLayerPending);
+        } catch (e) {}
+        state.radarLayerPending = null;
+      }
+
+      const pendingLayer = L.tileLayer(tileUrl, {
+        opacity: 0,
+        zIndex: 451,
+        crossOrigin: true,
+        maxNativeZoom: 7,
+        maxZoom: 10
+      }).addTo(state.map);
+
+      state.radarLayerPending = pendingLayer;
+
+      let hasStartedFade = false;
+
+      function startFade() {
+        if (hasStartedFade) return;
+        if (transitionId !== state.radarTransitionId) return;
+
+        hasStartedFade = true;
+
+        let opacity = 0;
+        const targetOpacity = 0.70;
+        const step = 0.08;
+
+        state.radarFadeTimer = setInterval(function () {
+          if (transitionId !== state.radarTransitionId) {
+            clearInterval(state.radarFadeTimer);
+            return;
+          }
+
+          opacity = Math.min(targetOpacity, opacity + step);
+          pendingLayer.setOpacity(opacity);
+
+          if (opacity >= targetOpacity) {
+            clearInterval(state.radarFadeTimer);
+            state.radarFadeTimer = null;
+
+            if (state.radarLayer && state.map.hasLayer(state.radarLayer)) {
+              state.map.removeLayer(state.radarLayer);
+            }
+
+            state.radarLayer = pendingLayer;
+            state.radarLayerPending = null;
+
+            if (state.routeLine) {
+              state.routeLine.bringToFront();
+            }
+          }
+        }, 45);
+      }
+
+      pendingLayer.once("load", startFade);
+      setTimeout(startFade, 650);
+    }
+
+    function updateTimelineAppearance() {
+      const slider = el("timelineSlider");
+
+      if (!slider || !state.radarFramesUi.length) return;
+
+      const max = Number(slider.max) || 1;
+      const lastActualIndex = Math.max(0, state.radarFramesActual.length - 1);
+      const split = (lastActualIndex / max) * 100;
+      const currentFrame = state.radarFramesUi[state.selectedFrameIndex];
+
+      slider.style.background =
+        "linear-gradient(to right, #38bdf8 0%, #38bdf8 " +
+        split +
+        "%, #f59e0b " +
+        split +
+        "%, #f59e0b 100%)";
+
+      if (currentFrame && currentFrame.type === "projected") {
+        slider.classList.add("projected");
+        el("timelineNote").textContent = "Amber section = projected radar trend, not actual future radar.";
+      } else {
+        slider.classList.remove("projected");
+        el("timelineNote").textContent = "Blue section = actual radar history. Amber section = projected trend.";
+      }
+    }
+
+    function stopRadarPlayback() {
+      if (state.playTimer) {
+        clearInterval(state.playTimer);
+        state.playTimer = null;
+      }
+
+      state.isPlaying = false;
+
+      const button = el("playButton");
+      if (button) {
+        button.textContent = "▶ Play";
+        button.classList.remove("playing");
+      }
+    }
+
+    function startRadarPlayback() {
+      stopRadarPlayback();
+
+      state.isPlaying = true;
+
+      const button = el("playButton");
+      if (button) {
+        button.textContent = "⏸ Pause";
+        button.classList.add("playing");
+      }
+
+      state.playTimer = setInterval(async function () {
+        if (!state.radarFramesUi.length) return;
+        if (state.isRadarUpdating) return;
+
+        const slider = el("timelineSlider");
+        const max = Number(slider.max) || 0;
+
+        let nextIndex = state.selectedFrameIndex + 1;
+
+        if (nextIndex > max) {
+          nextIndex = 0;
+        }
+
+        state.selectedFrameIndex = nextIndex;
+        slider.value = nextIndex;
+
+        await updateRadarFrame(nextIndex);
+      }, 1400);
+    }
+
+    function toggleRadarPlayback() {
+      if (state.isPlaying) {
+        stopRadarPlayback();
+      } else {
+        startRadarPlayback();
+      }
+    }
+
+    async function updateRadarFrame(index) {
+      if (state.isRadarUpdating) return;
+
+      const frameInfo = state.radarFramesUi[index];
+
+      if (!frameInfo || !state.radarHost) return;
+
+      state.isRadarUpdating = true;
+
+      try {
+        const displayFrame = frameInfo.type === "projected"
+          ? state.radarFramesActual[state.radarFramesActual.length - 1]
+          : frameInfo;
+
+        const tileUrl = rainTileUrl(displayFrame);
+
+        applyRadarLayer(tileUrl);
+        updateTimelineAppearance();
+
+        if (state.routeLine) {
+          state.routeLine.bringToFront();
+        }
+
+        el("mapTimeChip").textContent = frameInfo.type === "projected"
+          ? frameInfo.label + " (trend projection)"
+          : "Radar " + frameInfo.label;
+
+        el("mapTimeChip").style.borderColor =
+          frameInfo.type === "projected"
+            ? "rgba(245,158,11,0.75)"
+            : "rgba(56,189,248,0.55)";
+
+        el("radarMeta").textContent = frameInfo.type === "projected"
+          ? frameInfo.label + " - projected from latest radar trend"
+          : "Radar frame " + frameInfo.label;
+
+        let radarAnalysis;
+
+        if (frameInfo.type === "projected") {
+          radarAnalysis = await projectedRadarAnalysis(frameInfo.minutesAhead);
+        } else {
+          radarAnalysis = await analyseRadarFrame(frameInfo);
+        }
+
+        state.latestRadarAnalysis = radarAnalysis;
+
+        const decision = buildDecision(frameInfo, radarAnalysis);
+        state.currentDecision = decision;
+
+        renderDecision(decision, frameInfo, radarAnalysis);
+
+        el("radarStatus").textContent =
+          "Radar status: " +
+          radarAnalysis.status +
+          ". Route intensity score " +
+          radarAnalysis.score +
+          "/255. " +
+          (frameInfo.type === "projected"
+            ? "Projected frames are trend estimates, not guaranteed future radar."
+            : "This is an actual radar frame.");
+      } finally {
+        state.isRadarUpdating = false;
+      }
+    }
+
+    async function loadRadar() {
+      try {
+        const res = await fetchWithTimeout("https://api.rainviewer.com/public/weather-maps.json", 9000);
+
+        if (!res.ok) throw new Error("Radar request failed");
+
+        const data = await res.json();
+
+        state.radarHost = data.host;
+        state.radarFramesUi = buildRadarUiFrames(data);
+
+        if (!state.radarFramesUi.length) {
+          throw new Error("No radar frames returned");
+        }
+
+        const slider = el("timelineSlider");
+        slider.max = Math.max(0, state.radarFramesUi.length - 1);
+        slider.value = Math.max(0, state.radarFramesActual.length - 1);
+        state.selectedFrameIndex = Number(slider.value);
+
+        renderTimelineLabels();
+
+        slider.addEventListener("input", async function (event) {
+          stopRadarPlayback();
+          state.selectedFrameIndex = Number(event.target.value);
+          updateTimelineAppearance();
+          await updateRadarFrame(state.selectedFrameIndex);
+        });
+
+        const playButton = el("playButton");
+        if (playButton) {
+          playButton.addEventListener("click", toggleRadarPlayback);
+        }
+
+        updateTimelineAppearance();
+        await updateRadarFrame(state.selectedFrameIndex);
+      } catch (err) {
+        el("radarMeta").textContent = "Radar unavailable";
+        el("radarStatus").innerHTML =
+          "<span class='error'>Radar status: failed to load RainViewer data. This may be blocked by your network or browser.</span>";
+
+        el("tileRadar").textContent = "Unavailable";
+        el("tileRadarSub").textContent = "Check network access to RainViewer.";
+
+        renderForecastOnlyIfRadarSlow();
+      }
+    }
+
+    async function boot() {
+      initMap();
+      await Promise.allSettled([loadForecast(), loadRadar()]);
+    }
+
+    boot();
+  </script>
+</body>
+</html>
